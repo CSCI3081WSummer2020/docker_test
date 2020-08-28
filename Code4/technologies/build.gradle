@@ -1,0 +1,102 @@
+plugins {
+	id 'java'
+	id 'checkstyle'
+	id 'jacoco'
+}
+
+repositories {
+	//maven { url "https://maven-central.storage.googleapis.com" }
+	jcenter()
+	//mavenCentral()
+}
+
+//variables
+ext {
+	gradeProject = 'technologies'
+	gradePackage = 'edu.umn.cs.csci3081w.technologies'
+	gradeConfig = 'config/grade.yml'
+}
+
+//configuration for ricechecks (must be before dependencies)
+configurations {
+	ricechecks
+}
+
+//dependencies
+dependencies {
+	//autograder annotations
+	implementation group: 'edu.rice.ricechecks', name: 'ricechecks-annotations', version: '0.8.0'
+	//autograder tool
+	ricechecks group: 'edu.rice.ricechecks', name: 'ricechecks', version: '0.8.0'
+	//logging
+	implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
+	//testing framework
+	testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter', version: '5.6.2'
+}
+
+//java task configuration
+java {
+	sourceCompatibility = JavaVersion.VERSION_1_8
+	targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+//checkstyle task configuration
+checkstyle {
+	toolVersion '8.33'
+	configFile file('config/checkstyle/google_checks.xml')
+	reportsDir file("build/reports/checkstyle")
+}
+checkstyleMain {
+	source ='src/main/java'
+}
+checkstyleTest {
+	source ='src/test/java'
+}
+
+//jacoco configuration
+jacoco {
+	toolVersion = "0.8.5"
+}
+jacocoTestReport {
+	reports {
+		xml.enabled = true
+		csv.enabled = false
+		html.destination file("${buildDir}/reports/jacoco/")
+	}
+}
+
+//test task configuration
+test {
+	useJUnitPlatform()
+	outputs.upToDateWhen { false }
+	ignoreFailures true
+}
+
+
+/////////autograder tasks
+task autograder {
+	dependsOn 'classes', 'jacocoTestCoverageVerification', 'jacocoTestReport', 'checkstyleMain', 'checkstyleTest', 'test'
+	doLast {
+		gradle.buildFinished { ignoredResult ->
+			project.javaexec {
+				classpath = configurations.ricechecks
+				main = "edu.rice.autograder.AutoGraderKt"
+				args = [ "--project", rootProject.ext.gradeProject, "--config", rootProject.ext.gradeConfig, "grade" ]
+			}
+		}
+	}
+}
+
+task autograderDebugAnnotations (type: JavaExec) {
+	dependsOn 'classes'
+	classpath([configurations.ricechecks, sourceSets.main.runtimeClasspath, sourceSets.test.runtimeClasspath])
+	main = "edu.rice.autograder.AutoGraderKt"
+	args = [ "--package", rootProject.ext.gradePackage, "--project", rootProject.ext.gradeProject, "--log", "all", "debugAnnotations" ]
+}
+
+task autograderWriteConfig (type: JavaExec) {
+	dependsOn 'classes'
+	classpath([configurations.ricechecks, sourceSets.main.runtimeClasspath, sourceSets.test.runtimeClasspath])
+	main = "edu.rice.autograder.AutoGraderKt"
+	args = [ "--package", rootProject.ext.gradePackage, "--project", rootProject.ext.gradeProject, "--config", rootProject.ext.gradeConfig, "writeConfig" ]
+}
